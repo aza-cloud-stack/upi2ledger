@@ -69,7 +69,7 @@ async def login_submit(request: Request) -> HTMLResponse | RedirectResponse:
             key="session",
             value=token,
             httponly=True,
-            samesite="strict",
+            samesite="lax",
             secure=not settings.app.debug,
             max_age=86400,
         )
