@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — upi2ledger{% endblock %}
+
+{% block nav %}
+<span class="user">{{ username }}</span>
+<a href="/logout">Logout</a>
+{% endblock %}
+
+{% block content %}
+<h1>Welcome to upi2ledger</h1>
+<p>UPI transaction emails → hledger journal entries.</p>
+{% endblock %}
