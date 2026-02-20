@@ -1,0 +1,38 @@
+# upi2ledger configuration
+# Copy this to config.yaml and fill in your values:
+#   cp config.example.yaml config.yaml
+#
+# NEVER commit config.yaml — it contains secrets.
+
+app:
+  # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+  secret_key: "CHANGE-ME"
+  debug: false
+  host: "127.0.0.1"
+  port: 8000
+  allowed_hosts:
+    - "127.0.0.1"
+    - "localhost"
+  auth:
+    username: "admin"
+    # Generate with: python -c "import bcrypt; print(bcrypt.hashpw(b'yourpassword', bcrypt.gensalt()).decode())"
+    password_hash: ""
+
+journal:
+  path: "~/finance/2026.journal"
+  default_payment_account: "assets:bank:sbi:savings"
+
+gmail:
+  # Customize the search query to match your email patterns
+  query: "subject:(UPI OR GPay OR PhonePe OR Paytm) newer_than:7d"
+  labels: []
+
+sync:
+  interval_hours: 6    # 0 = manual sync only
+  auto_approve_known: false
+
+llm:
+  enabled: false
+  provider: "ollama"
+  model: "llama3.1:8b"
+  url: "http://localhost:11434"
