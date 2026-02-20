@@ -17,6 +17,7 @@ from app.config import Settings, load_settings
 from app.db.models import get_db_path, init_db
 from app.logging import setup_logging
 from app.routes.auth import router as auth_router
+from app.routes.gmail import router as gmail_router
 from app.security import AuthRequired, SecurityHeadersMiddleware, require_auth
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Routes
     app.include_router(auth_router)
+    app.include_router(gmail_router)
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request, username: str = Depends(require_auth)) -> HTMLResponse:

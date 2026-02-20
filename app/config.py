@@ -62,6 +62,8 @@ class GmailConfig(BaseModel):
 
     query: str = "subject:(UPI OR GPay OR PhonePe OR Paytm) newer_than:7d"
     labels: list[str] = []
+    credentials_path: str = "data/gmail_credentials.json"
+    token_path: str = "data/gmail_token.json"  # noqa: S105
 
 
 class SyncConfig(BaseModel):

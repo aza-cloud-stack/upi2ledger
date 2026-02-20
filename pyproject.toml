@@ -41,6 +41,11 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = ["google.*", "google_auth_oauthlib.*", "googleapiclient.*"]
+ignore_missing_imports = true
+follow_imports = "silent"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --tb=short"

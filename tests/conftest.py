@@ -47,6 +47,8 @@ def make_test_config(
         },
         "gmail": {
             "query": "test query",
+            "credentials_path": "data/gmail_credentials.json",
+            "token_path": "data/gmail_token.json",
         },
         "sync": {
             "interval_hours": 6,
@@ -109,3 +111,9 @@ def client(
     app = create_app(settings=valid_settings)
     with TestClient(app) as tc:
         yield tc
+
+
+def login(client: TestClient) -> TestClient:
+    """Log in to the test client and return it with session cookie set."""
+    client.post("/login", data={"username": "admin", "password": TEST_PASSWORD})
+    return client

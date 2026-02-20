@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Gmail Settings — upi2ledger{% endblock %}
+
+{% block nav %}
+<span class="user">{{ username }}</span>
+<a href="/">Dashboard</a>
+<a href="/logout">Logout</a>
+{% endblock %}
+
+{% block content %}
+<h1>Gmail Settings</h1>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">{{ success }}</div>
+{% endif %}
+
+{% if connected %}
+<div class="status-card connected">
+    <h2>Connected</h2>
+    <p>Gmail is connected and ready to fetch UPI transaction emails.</p>
+    <a href="/gmail/disconnect" class="btn btn-danger">Disconnect Gmail</a>
+</div>
+{% else %}
+<div class="status-card disconnected">
+    <h2>Not Connected</h2>
+    <p>Connect your Gmail account to start fetching UPI transaction emails.</p>
+    <a href="/gmail/authorize" class="btn btn-primary">Connect Gmail</a>
+</div>
+
+<div class="setup-instructions">
+    <h3>Setup Instructions</h3>
+    <ol>
+        <li>Go to the <strong>Google Cloud Console</strong> and create a new project (or select an existing one).</li>
+        <li>Enable the <strong>Gmail API</strong> for your project.</li>
+        <li>Go to <strong>Credentials</strong> and create an <strong>OAuth 2.0 Client ID</strong> (Web application type).</li>
+        <li>Add <code>http://127.0.0.1:8000/gmail/callback</code> as an authorized redirect URI.</li>
+        <li>Download the credentials JSON file and save it as <code>data/gmail_credentials.json</code>.</li>
+        <li>Click <strong>Connect Gmail</strong> above to authorize access.</li>
+    </ol>
+</div>
+{% endif %}
+{% endblock %}

@@ -26,6 +26,10 @@ gmail:
   # Customize the search query to match your email patterns
   query: "subject:(UPI OR GPay OR PhonePe OR Paytm) newer_than:7d"
   labels: []
+  # Path to OAuth2 credentials downloaded from GCP Console
+  credentials_path: "data/gmail_credentials.json"
+  # Path where OAuth2 token will be saved (auto-created after authorization)
+  token_path: "data/gmail_token.json"
 
 sync:
   interval_hours: 6    # 0 = manual sync only
