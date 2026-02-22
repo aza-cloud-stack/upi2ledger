@@ -1,0 +1,14 @@
+From: Paytm <noreply@paytm.com>
+Subject: Paid ₹500 to DMart
+Date: Thu, 20 Feb 2026 16:45:00 +0530
+
+Dear User,
+
+You have paid ₹500.00 to DMart.
+
+Order ID: 402089012345
+Date: 20 Feb 2026
+
+From your HDFC Bank account via UPI.
+
+Thanks for using Paytm!

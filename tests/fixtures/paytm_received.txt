@@ -1,0 +1,14 @@
+From: Paytm <noreply@paytm.com>
+Subject: ₹1,000 received via Paytm
+Date: Sat, 22 Feb 2026 08:00:00 +0530
+
+Dear User,
+
+₹1,000.00 has been received in your Paytm wallet.
+
+Order ID: 402201234567
+Date: 22 Feb 2026
+
+Credited to your account via UPI.
+
+Thanks for using Paytm!

@@ -1,0 +1,14 @@
+From: SBI <alerts@sbi.co.in>
+Subject: UPI transaction of Rs.500.00 debited from your a/c
+Date: Thu, 20 Feb 2026 14:35:00 +0530
+
+Dear Customer,
+
+Your a/c XX1234 has been debited by Rs.500.00 on 20-02-2026.
+
+UPI/P2M/402012345678/Swiggy
+UPI Ref No: 402012345678
+
+Available balance: Rs.XXXXX.XX
+
+This is a system generated alert from SBI.

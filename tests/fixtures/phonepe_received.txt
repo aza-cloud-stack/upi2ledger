@@ -1,0 +1,14 @@
+From: PhonePe <noreply@phonepe.com>
+Subject: ₹1,000 received from Priya Sharma
+Date: Fri, 21 Feb 2026 11:30:00 +0530
+
+Hi User,
+
+You have received ₹1,000.00 from Priya Sharma.
+
+Transaction ID: 402167890123
+Date: 21 Feb 2026, 11:30 AM
+
+Credited to your SBI account XX5678 via UPI.
+
+Thank you for using PhonePe!

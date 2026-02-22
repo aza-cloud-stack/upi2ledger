@@ -1,0 +1,14 @@
+From: HDFC Bank <alerts@hdfcbank.net>
+Subject: Your a/c XX5678 credited with Rs 1000.00
+Date: Fri, 21 Feb 2026 10:20:00 +0530
+
+Dear Customer,
+
+Your a/c XX5678 has been credited with Rs 1000.00 on 21-02-2026.
+
+UPI Ref No: 402198765432
+Beneficiary: Rahul Kumar
+
+Available balance: Rs.XXXXX.XX
+
+This is a system generated message from HDFC Bank.

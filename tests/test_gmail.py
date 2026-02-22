@@ -310,6 +310,27 @@ class TestGmailFetch:
         ids = _get_processed_ids(test_db)
         assert ids == {"msg1", "msg2"}
 
+    def test_get_processed_ids_filters_by_account(self, test_db: Path) -> None:
+        """_get_processed_ids only returns IDs for the specified account."""
+        conn = get_connection(test_db)
+        try:
+            conn.execute(
+                "INSERT INTO processed_emails "
+                "(message_id, processed_at, parser_source, account_id) VALUES (?, ?, ?, ?)",
+                ("msg-a", "2026-01-01T00:00:00Z", "regex", "personal"),
+            )
+            conn.execute(
+                "INSERT INTO processed_emails "
+                "(message_id, processed_at, parser_source, account_id) VALUES (?, ?, ?, ?)",
+                ("msg-b", "2026-01-01T00:00:00Z", "regex", "work"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        assert _get_processed_ids(test_db, "personal") == {"msg-a"}
+        assert _get_processed_ids(test_db, "work") == {"msg-b"}
+
     def test_mark_as_processed(self, test_db: Path) -> None:
         """mark_as_processed inserts a row."""
         mark_as_processed(test_db, "msg_new", "regex")
@@ -324,6 +345,21 @@ class TestGmailFetch:
             assert row is not None
             assert row["message_id"] == "msg_new"
             assert row["parser_source"] == "regex"
+        finally:
+            conn.close()
+
+    def test_mark_as_processed_with_account(self, test_db: Path) -> None:
+        """mark_as_processed stores account_id."""
+        mark_as_processed(test_db, "msg-acct", "regex", account_id="personal")
+
+        conn = get_connection(test_db)
+        try:
+            row = conn.execute(
+                "SELECT account_id FROM processed_emails WHERE message_id = ?",
+                ("msg-acct",),
+            ).fetchone()
+            assert row is not None
+            assert row["account_id"] == "personal"
         finally:
             conn.close()
 
@@ -352,6 +388,12 @@ class TestGmailFetch:
     def test_is_processed_false(self, test_db: Path) -> None:
         """is_processed returns False for unprocessed messages."""
         assert is_processed(test_db, "msg_unknown") is False
+
+    def test_is_processed_account_scoped(self, test_db: Path) -> None:
+        """is_processed is scoped to a specific account."""
+        mark_as_processed(test_db, "msg-scope", "regex", account_id="personal")
+        assert is_processed(test_db, "msg-scope", account_id="personal") is True
+        assert is_processed(test_db, "msg-scope", account_id="work") is False
 
     def test_fetch_emails_skips_processed(self, test_db: Path) -> None:
         """fetch_emails skips already-processed message IDs."""
@@ -445,40 +487,56 @@ class TestGmailFetch:
 
 
 class TestGmailRoutes:
-    """Tests for app/routes/gmail.py — web routes."""
+    """Tests for app/routes/gmail.py — multi-account web routes."""
 
-    def test_connect_requires_auth(self, client: TestClient) -> None:
-        """/gmail/connect redirects to /login when unauthenticated."""
-        response = client.get("/gmail/connect", follow_redirects=False)
+    def test_accounts_requires_auth(self, client: TestClient) -> None:
+        """/gmail/accounts redirects to /login when unauthenticated."""
+        response = client.get("/gmail/accounts", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/login"
 
-    def test_connect_shows_not_connected(self, client: TestClient) -> None:
-        """/gmail/connect shows 'Not Connected' when no token."""
+    def test_accounts_shows_account_list(self, client: TestClient) -> None:
+        """/gmail/accounts shows the default account."""
         login(client)
-        response = client.get("/gmail/connect")
+        response = client.get("/gmail/accounts")
         assert response.status_code == 200
-        assert "Not Connected" in response.text
+        assert "Gmail" in response.text  # default account label
+        assert "Not connected" in response.text
 
     @patch("app.routes.gmail.is_connected", return_value=True)
-    def test_connect_shows_connected(self, mock_conn: MagicMock, client: TestClient) -> None:
-        """/gmail/connect shows 'Connected' when token exists."""
+    def test_accounts_shows_connected(self, mock_conn: MagicMock, client: TestClient) -> None:
+        """/gmail/accounts shows 'Connected' when token exists."""
         login(client)
-        response = client.get("/gmail/connect")
+        response = client.get("/gmail/accounts")
         assert response.status_code == 200
         assert "Connected" in response.text
-        assert "Disconnect Gmail" in response.text
+        assert "Disconnect" in response.text
+
+    def test_connect_redirects_to_accounts(self, client: TestClient) -> None:
+        """/gmail/connect redirects to /gmail/accounts (backward compat)."""
+        login(client)
+        response = client.get("/gmail/connect", follow_redirects=False)
+        assert response.status_code == 301
+        assert response.headers["location"] == "/gmail/accounts"
 
     def test_authorize_requires_auth(self, client: TestClient) -> None:
-        """/gmail/authorize redirects to /login when unauthenticated."""
-        response = client.get("/gmail/authorize", follow_redirects=False)
+        """/gmail/{account_id}/authorize redirects to /login when unauthenticated."""
+        response = client.get("/gmail/default/authorize", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/login"
 
-    def test_authorize_missing_credentials_shows_error(self, client: TestClient) -> None:
-        """/gmail/authorize shows error when credentials.json is missing."""
+    def test_authorize_unknown_account(self, client: TestClient) -> None:
+        """/gmail/{account_id}/authorize rejects unknown account."""
         login(client)
-        response = client.get("/gmail/authorize", follow_redirects=False)
+        response = client.get("/gmail/nonexistent/authorize", follow_redirects=False)
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+        assert "Unknown" in response.headers["location"]
+
+    def test_authorize_missing_credentials_shows_error(self, client: TestClient) -> None:
+        """/gmail/{account_id}/authorize shows error when credentials.json is missing."""
+        login(client)
+        response = client.get("/gmail/default/authorize", follow_redirects=False)
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
         assert "credentials" in response.headers["location"].lower()
@@ -487,7 +545,7 @@ class TestGmailRoutes:
     def test_authorize_redirects_to_google(
         self, mock_flow_fn: MagicMock, client: TestClient
     ) -> None:
-        """/gmail/authorize redirects to Google with state cookie."""
+        """/gmail/{account_id}/authorize redirects to Google with JSON state cookie."""
         mock_flow = MagicMock()
         mock_flow.authorization_url.return_value = (
             "https://accounts.google.com/o/oauth2/auth?state=test_state",
@@ -496,10 +554,15 @@ class TestGmailRoutes:
         mock_flow_fn.return_value = mock_flow
 
         login(client)
-        response = client.get("/gmail/authorize", follow_redirects=False)
+        response = client.get("/gmail/default/authorize", follow_redirects=False)
         assert response.status_code == 303
         assert "accounts.google.com" in response.headers["location"]
         assert "oauth_state" in response.cookies
+
+        # Verify cookie contains state|account_id
+        cookie_value = response.cookies["oauth_state"]
+        assert "test_state" in cookie_value
+        assert "default" in cookie_value
 
     def test_callback_requires_auth(self, client: TestClient) -> None:
         """/gmail/callback redirects to /login when unauthenticated."""
@@ -510,14 +573,24 @@ class TestGmailRoutes:
     def test_callback_validates_state_mismatch(self, client: TestClient) -> None:
         """/gmail/callback rejects state mismatch (CSRF protection)."""
         login(client)
-        # Set a state cookie manually
-        client.cookies.set("oauth_state", "expected_state")
+        client.cookies.set("oauth_state", "expected_state|default")
         response = client.get(
             "/gmail/callback?state=wrong_state&code=auth_code",
             follow_redirects=False,
         )
         assert response.status_code == 303
         assert "state+mismatch" in response.headers["location"]
+
+    def test_callback_handles_invalid_state_cookie(self, client: TestClient) -> None:
+        """/gmail/callback handles state cookie without pipe separator."""
+        login(client)
+        client.cookies.set("oauth_state", "no-pipe-separator")
+        response = client.get(
+            "/gmail/callback?state=test&code=auth_code",
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert "invalid+state" in response.headers["location"]
 
     def test_callback_handles_error_from_google(self, client: TestClient) -> None:
         """/gmail/callback handles error param from Google."""
@@ -543,7 +616,7 @@ class TestGmailRoutes:
         mock_exchange.return_value = MagicMock()
 
         login(client)
-        client.cookies.set("oauth_state", "valid_state")
+        client.cookies.set("oauth_state", "valid_state|default")
         response = client.get(
             "/gmail/callback?state=valid_state&code=auth_code",
             follow_redirects=False,
@@ -553,20 +626,28 @@ class TestGmailRoutes:
         mock_exchange.assert_called_once()
 
     def test_disconnect_requires_auth(self, client: TestClient) -> None:
-        """/gmail/disconnect redirects to /login when unauthenticated."""
-        response = client.get("/gmail/disconnect", follow_redirects=False)
+        """/gmail/{account_id}/disconnect redirects to /login when unauthenticated."""
+        response = client.get("/gmail/default/disconnect", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/login"
 
-    def test_disconnect_removes_token(self, client: TestClient, tmp_path: Path) -> None:
-        """/gmail/disconnect removes the token file."""
-        # Create a fake token file in the path the settings point to
-        token_path = Path(client.app.state.settings.gmail.token_path)  # type: ignore[attr-defined]
+    def test_disconnect_unknown_account(self, client: TestClient) -> None:
+        """/gmail/{account_id}/disconnect rejects unknown account."""
+        login(client)
+        response = client.get("/gmail/nonexistent/disconnect", follow_redirects=False)
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_disconnect_removes_token(self, client: TestClient) -> None:
+        """/gmail/{account_id}/disconnect removes the token file."""
+        settings = client.app.state.settings  # type: ignore[attr-defined]
+        acct = settings.gmail.accounts[0]
+        token_path = Path(acct.token_path)
         token_path.parent.mkdir(parents=True, exist_ok=True)
         token_path.write_text("{}")
 
         login(client)
-        response = client.get("/gmail/disconnect", follow_redirects=False)
+        response = client.get(f"/gmail/{acct.id}/disconnect", follow_redirects=False)
         assert response.status_code == 303
         assert "success=" in response.headers["location"]
         assert not token_path.exists()

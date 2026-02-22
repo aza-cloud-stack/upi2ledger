@@ -1,0 +1,14 @@
+From: Paytm <noreply@paytm.com>
+Subject: You paid ₹300 to Flipkart on Paytm
+Date: Fri, 21 Feb 2026 13:10:00 +0530
+
+Dear User,
+
+You have paid ₹300.00 to Flipkart on Paytm.
+
+Order ID: 402190123456
+Date: 21 Feb 2026
+
+From your SBI account via UPI.
+
+Thanks for using Paytm!

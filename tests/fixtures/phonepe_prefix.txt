@@ -1,0 +1,14 @@
+From: PhonePe <noreply@phonepe.com>
+Subject: PhonePe: You paid ₹300 to Amazon
+Date: Sat, 22 Feb 2026 15:20:00 +0530
+
+Hi User,
+
+You have paid ₹300.00 to Amazon via PhonePe.
+
+Transaction ID: 402278901234
+Date: 22 Feb 2026, 03:20 PM
+
+Paid from Axis Bank XX3456 via UPI.
+
+Thank you for using PhonePe!

@@ -1,0 +1,14 @@
+From: ICICI Bank <alerts@icicibank.com>
+Subject: Alert: INR 500.00 debited from a/c XX9012
+Date: Sat, 22 Feb 2026 09:50:00 +0530
+
+Dear Customer,
+
+INR 500.00 has been debited from your a/c XX9012 on 22-02-2026.
+
+Transaction ID: 402234567890
+To: BigBasket
+
+Available balance: INR XXXXX.XX
+
+This is a system generated alert from ICICI Bank.

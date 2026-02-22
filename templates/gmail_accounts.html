@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Gmail Settings — upi2ledger{% endblock %}
+{% block title %}Gmail Accounts — upi2ledger{% endblock %}
 
 {% block nav %}
 <span class="user">{{ username }}</span>
@@ -9,7 +9,7 @@
 {% endblock %}
 
 {% block content %}
-<h1>Gmail Settings</h1>
+<h1>Gmail Accounts</h1>
 
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
@@ -19,18 +19,22 @@
 <div class="alert alert-success">{{ success }}</div>
 {% endif %}
 
-{% if connected %}
-<div class="status-card connected">
-    <h2>Connected</h2>
-    <p>Gmail is connected and ready to fetch UPI transaction emails.</p>
-    <a href="/gmail/disconnect" class="btn btn-danger">Disconnect Gmail</a>
+{% for acct in accounts %}
+<div class="status-card {{ 'connected' if acct.connected else 'disconnected' }}">
+    <h2>{{ acct.label }}</h2>
+    {% if acct.connected %}
+    <p>Connected and ready to fetch UPI transaction emails.</p>
+    <a href="/gmail/{{ acct.id }}/disconnect" class="btn btn-danger">Disconnect</a>
+    {% else %}
+    <p>Not connected. Click below to authorize this account.</p>
+    <a href="/gmail/{{ acct.id }}/authorize" class="btn btn-primary">Connect</a>
+    {% endif %}
 </div>
-{% else %}
-<div class="status-card disconnected">
-    <h2>Not Connected</h2>
-    <p>Connect your Gmail account to start fetching UPI transaction emails.</p>
-    <a href="/gmail/authorize" class="btn btn-primary">Connect Gmail</a>
-</div>
+{% endfor %}
+
+{% if not accounts %}
+<p>No Gmail accounts configured. Add accounts to your <code>config.yaml</code>.</p>
+{% endif %}
 
 <div class="setup-instructions">
     <h3>Setup Instructions</h3>
@@ -40,8 +44,8 @@
         <li>Go to <strong>Credentials</strong> and create an <strong>OAuth 2.0 Client ID</strong> (Web application type).</li>
         <li>Add <code>http://127.0.0.1:8000/gmail/callback</code> as an authorized redirect URI.</li>
         <li>Download the credentials JSON file and save it as <code>data/gmail_credentials.json</code>.</li>
-        <li>Click <strong>Connect Gmail</strong> above to authorize access.</li>
+        <li>Add each Gmail address as a <strong>test user</strong> in the OAuth consent screen.</li>
+        <li>Click <strong>Connect</strong> next to each account above.</li>
     </ol>
 </div>
-{% endif %}
 {% endblock %}

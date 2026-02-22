@@ -1,6 +1,7 @@
 """Gmail connection and OAuth2 callback routes.
 
 All routes require authentication via the session cookie.
+Supports multiple Gmail accounts — each with its own OAuth token.
 """
 
 from __future__ import annotations
@@ -25,37 +26,59 @@ router = APIRouter(prefix="/gmail", tags=["gmail"])
 templates = Jinja2Templates(directory="templates", autoescape=True)
 
 
-@router.get("/connect", response_class=HTMLResponse)
-async def gmail_connect(request: Request, username: str = Depends(require_auth)) -> HTMLResponse:
-    """Show Gmail connection status page."""
+@router.get("/accounts", response_class=HTMLResponse)
+async def gmail_accounts(
+    request: Request, username: str = Depends(require_auth),
+) -> HTMLResponse:
+    """Show all Gmail account connection statuses."""
     settings = request.app.state.settings
-    token_path = Path(settings.gmail.token_path)
-    connected = is_connected(token_path)
+    accounts_status = []
+    for acct in settings.gmail.accounts:
+        token_path = Path(acct.token_path)
+        connected = is_connected(token_path)
+        accounts_status.append({
+            "id": acct.id,
+            "label": acct.label,
+            "connected": connected,
+        })
 
     error = request.query_params.get("error")
     success = request.query_params.get("success")
 
     return templates.TemplateResponse(
         request,
-        "gmail_connect.html",
+        "gmail_accounts.html",
         {
             "username": username,
-            "connected": connected,
+            "accounts": accounts_status,
             "error": error,
             "success": success,
         },
     )
 
 
-@router.get("/authorize")
-async def gmail_authorize(
-    request: Request, username: str = Depends(require_auth)
+@router.get("/connect")
+async def gmail_connect_redirect(
+    request: Request, username: str = Depends(require_auth),
 ) -> RedirectResponse:
-    """Start OAuth2 flow — redirect to Google consent screen."""
-    settings = request.app.state.settings
-    credentials_path = Path(settings.gmail.credentials_path)
+    """Redirect old connect URL to new accounts page."""
+    return RedirectResponse(url="/gmail/accounts", status_code=301)
 
-    # Build redirect URI for the callback
+
+@router.get("/{account_id}/authorize")
+async def gmail_authorize(
+    request: Request, account_id: str, username: str = Depends(require_auth),
+) -> RedirectResponse:
+    """Start OAuth2 flow for a specific Gmail account."""
+    settings = request.app.state.settings
+    acct = settings.gmail.get_account(account_id)
+    if acct is None:
+        return RedirectResponse(
+            url="/gmail/accounts?error=Unknown+account",
+            status_code=303,
+        )
+
+    credentials_path = Path(settings.gmail.credentials_path)
     redirect_uri = str(request.url_for("gmail_callback"))
 
     try:
@@ -63,7 +86,7 @@ async def gmail_authorize(
     except FileNotFoundError:
         logger.info("Gmail credentials file not found")
         return RedirectResponse(
-            url="/gmail/connect?error=Gmail+credentials+file+not+found.+Download+OAuth2+credentials+from+GCP+Console+and+save+as+data/gmail_credentials.json",
+            url="/gmail/accounts?error=Gmail+credentials+file+not+found.+Download+OAuth2+credentials+from+GCP+Console+and+save+as+data/gmail_credentials.json",
             status_code=303,
         )
 
@@ -72,24 +95,26 @@ async def gmail_authorize(
         prompt="consent",
     )
 
-    # Store state in httponly cookie for CSRF protection
+    # Store state AND account_id in httponly cookie for CSRF protection.
+    # Use pipe separator (not JSON) to avoid cookie escaping issues.
+    cookie_value = f"{state}|{account_id}"
     response = RedirectResponse(url=authorization_url, status_code=303)
     response.set_cookie(
         key="oauth_state",
-        value=state,
+        value=cookie_value,
         httponly=True,
         samesite="lax",  # Must be Lax for cross-site redirect from Google
         secure=not settings.app.debug,
         max_age=600,  # 10 minutes
     )
 
-    logger.info("Gmail OAuth2 flow started")
+    logger.info("Gmail OAuth2 flow started for account %s", account_id)
     return response
 
 
 @router.get("/callback")
 async def gmail_callback(
-    request: Request, username: str = Depends(require_auth)
+    request: Request, username: str = Depends(require_auth),
 ) -> RedirectResponse:
     """Handle Google's OAuth2 redirect — exchange code for tokens."""
     settings = request.app.state.settings
@@ -99,25 +124,41 @@ async def gmail_callback(
     if error:
         logger.info("Gmail OAuth2 error from Google: %s", error)
         return RedirectResponse(
-            url="/gmail/connect?error=Google+authorization+was+denied+or+failed",
+            url="/gmail/accounts?error=Google+authorization+was+denied+or+failed",
             status_code=303,
         )
 
-    # Validate state (CSRF protection)
+    # Parse state cookie (format: "state|account_id")
+    state_cookie_raw = request.cookies.get("oauth_state", "")
     state_param = request.query_params.get("state", "")
-    state_cookie = request.cookies.get("oauth_state", "")
 
-    if not state_param or not state_cookie or state_param != state_cookie:
+    if "|" not in state_cookie_raw:
+        logger.info("Gmail OAuth2 state cookie invalid")
+        return RedirectResponse(
+            url="/gmail/accounts?error=Authorization+failed+—+invalid+state.+Please+try+again",
+            status_code=303,
+        )
+
+    expected_state, account_id = state_cookie_raw.rsplit("|", 1)
+
+    if not state_param or state_param != expected_state:
         logger.info("Gmail OAuth2 state mismatch — possible CSRF")
         return RedirectResponse(
-            url="/gmail/connect?error=Authorization+failed+—+state+mismatch.+Please+try+again",
+            url="/gmail/accounts?error=Authorization+failed+—+state+mismatch.+Please+try+again",
+            status_code=303,
+        )
+
+    acct = settings.gmail.get_account(account_id)
+    if acct is None:
+        return RedirectResponse(
+            url="/gmail/accounts?error=Unknown+account",
             status_code=303,
         )
 
     # Exchange authorization code for tokens
     code = request.query_params.get("code", "")
     credentials_path = Path(settings.gmail.credentials_path)
-    token_path = Path(settings.gmail.token_path)
+    token_path = Path(acct.token_path)
     redirect_uri = str(request.url_for("gmail_callback"))
 
     try:
@@ -126,32 +167,40 @@ async def gmail_callback(
     except Exception:
         logger.info("Gmail OAuth2 token exchange failed")
         return RedirectResponse(
-            url="/gmail/connect?error=Failed+to+complete+authorization.+Please+try+again",
+            url="/gmail/accounts?error=Failed+to+complete+authorization.+Please+try+again",
             status_code=303,
         )
 
     # Clear the state cookie
-    success_url = "/gmail/connect?success=Gmail+connected+successfully"
-    response = RedirectResponse(url=success_url, status_code=303)
+    response = RedirectResponse(
+        url="/gmail/accounts?success=Gmail+account+connected+successfully",
+        status_code=303,
+    )
     response.delete_cookie(key="oauth_state")
 
-    logger.info("Gmail OAuth2 callback completed successfully")
+    logger.info("Gmail OAuth2 callback completed for account %s", account_id)
     return response
 
 
-@router.get("/disconnect")
+@router.get("/{account_id}/disconnect")
 async def gmail_disconnect(
-    request: Request, username: str = Depends(require_auth)
+    request: Request, account_id: str, username: str = Depends(require_auth),
 ) -> RedirectResponse:
-    """Remove Gmail token and disconnect."""
+    """Remove Gmail token and disconnect a specific account."""
     settings = request.app.state.settings
-    token_path = Path(settings.gmail.token_path)
+    acct = settings.gmail.get_account(account_id)
+    if acct is None:
+        return RedirectResponse(
+            url="/gmail/accounts?error=Unknown+account",
+            status_code=303,
+        )
 
+    token_path = Path(acct.token_path)
     if token_path.exists():
         token_path.unlink()
-        logger.info("Gmail token removed")
+        logger.info("Gmail token removed for account %s", account_id)
 
     return RedirectResponse(
-        url="/gmail/connect?success=Gmail+disconnected",
+        url="/gmail/accounts?success=Gmail+account+disconnected",
         status_code=303,
     )

@@ -47,7 +47,28 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 """
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
+
+
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Add account_id column to processed_emails and pending_transactions."""
+    cursor = conn.execute("PRAGMA table_info(processed_emails)")
+    columns = {row[1] for row in cursor.fetchall()}
+    if "account_id" in columns:
+        return
+
+    conn.execute(
+        "ALTER TABLE processed_emails ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'"
+    )
+    conn.execute(
+        "ALTER TABLE pending_transactions ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'"
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_processed_account_message "
+        "ON processed_emails (account_id, message_id)"
+    )
+    conn.commit()
+    logger.info("Database migrated from v1 to v2 (added account_id)")
 
 
 def get_db_path() -> Path:
@@ -66,13 +87,22 @@ def init_db(db_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     try:
         conn.executescript(DB_SCHEMA)
-        # Track schema version
+        # Track schema version and run migrations
         cursor = conn.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
         row = cursor.fetchone()
-        if row is None:
+        current_version = row[0] if row else 0
+
+        if current_version < 1:
             conn.execute(
                 "INSERT INTO schema_version (version) VALUES (?)", (CURRENT_SCHEMA_VERSION,)
             )
+        if current_version < 2:
+            _migrate_v1_to_v2(conn)
+            if current_version >= 1:
+                conn.execute(
+                    "UPDATE schema_version SET version = ? WHERE version = ?",
+                    (CURRENT_SCHEMA_VERSION, current_version),
+                )
         conn.commit()
     finally:
         conn.close()

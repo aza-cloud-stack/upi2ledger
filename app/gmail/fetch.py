@@ -87,11 +87,15 @@ def _decode_body(payload: dict[str, object]) -> str:
     return plain_text or html_text
 
 
-def _get_processed_ids(db_path: Path) -> set[str]:
-    """Fetch all processed message IDs from the database."""
+def _get_processed_ids(db_path: Path, account_id: str = "default") -> set[str]:
+    """Fetch processed message IDs for a specific account from the database."""
     conn = get_connection(db_path)
     try:
-        rows = fetch_all(conn, "SELECT message_id FROM processed_emails")
+        rows = fetch_all(
+            conn,
+            "SELECT message_id FROM processed_emails WHERE account_id = ?",
+            (account_id,),
+        )
         return {row["message_id"] for row in rows}
     finally:
         conn.close()
@@ -101,6 +105,7 @@ def fetch_emails(
     service: Any,
     query: str,
     db_path: Path,
+    account_id: str = "default",
     max_results: int = 500,
 ) -> list[EmailMessage]:
     """Fetch emails matching query, skipping already-processed messages.
@@ -109,12 +114,13 @@ def fetch_emails(
         service: Authenticated Gmail API service.
         query: Gmail search query string.
         db_path: Path to the SQLite database.
+        account_id: Gmail account identifier for dedup scoping.
         max_results: Maximum number of messages to fetch.
 
     Returns:
         List of new (unprocessed) EmailMessage objects.
     """
-    processed_ids = _get_processed_ids(db_path)
+    processed_ids = _get_processed_ids(db_path, account_id)
     messages: list[EmailMessage] = []
     page_token: str | None = None
 
@@ -176,25 +182,30 @@ def fetch_emails(
     return messages
 
 
-def mark_as_processed(db_path: Path, message_id: str, parser_source: str) -> None:
+def mark_as_processed(
+    db_path: Path, message_id: str, parser_source: str, account_id: str = "default",
+) -> None:
     """Mark an email as processed in the database (INSERT OR IGNORE for dedup)."""
     conn = get_connection(db_path)
     try:
         conn.execute(
-            "INSERT OR IGNORE INTO processed_emails (message_id, processed_at, parser_source) "
-            "VALUES (?, ?, ?)",
-            (message_id, datetime.now(tz=UTC).isoformat(), parser_source),
+            "INSERT OR IGNORE INTO processed_emails "
+            "(message_id, processed_at, parser_source, account_id) VALUES (?, ?, ?, ?)",
+            (message_id, datetime.now(tz=UTC).isoformat(), parser_source, account_id),
         )
         conn.commit()
     finally:
         conn.close()
 
 
-def is_processed(db_path: Path, message_id: str) -> bool:
-    """Check if a message ID has already been processed."""
+def is_processed(db_path: Path, message_id: str, account_id: str = "default") -> bool:
+    """Check if a message ID has already been processed for a specific account."""
     conn = get_connection(db_path)
     try:
-        cursor = conn.execute("SELECT 1 FROM processed_emails WHERE message_id = ?", (message_id,))
+        cursor = conn.execute(
+            "SELECT 1 FROM processed_emails WHERE message_id = ? AND account_id = ?",
+            (message_id, account_id),
+        )
         return cursor.fetchone() is not None
     finally:
         conn.close()

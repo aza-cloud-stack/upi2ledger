@@ -23,13 +23,19 @@ journal:
   default_payment_account: "assets:bank:sbi:savings"
 
 gmail:
-  # Customize the search query to match your email patterns
-  query: "subject:(UPI OR GPay OR PhonePe OR Paytm) newer_than:7d"
-  labels: []
-  # Path to OAuth2 credentials downloaded from GCP Console
+  # Path to OAuth2 credentials downloaded from GCP Console (shared across accounts)
   credentials_path: "data/gmail_credentials.json"
-  # Path where OAuth2 token will be saved (auto-created after authorization)
-  token_path: "data/gmail_token.json"
+  # Default search query — can be overridden per account
+  query: "subject:(UPI OR GPay OR PhonePe OR Paytm) newer_than:7d"
+  accounts:
+    - id: "personal"
+      label: "Personal Gmail"
+      token_path: "data/gmail_token_personal.json"
+    # Add more accounts as needed:
+    # - id: "work"
+    #   label: "Work Gmail"
+    #   token_path: "data/gmail_token_work.json"
+    #   query: "subject:(UPI) newer_than:3d"  # optional per-account query override
 
 sync:
   interval_hours: 6    # 0 = manual sync only

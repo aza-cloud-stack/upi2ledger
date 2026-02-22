@@ -1,0 +1,13 @@
+From: Google Pay <noreply@google.com>
+Subject: You paid ₹500 to Swiggy
+Date: Thu, 20 Feb 2026 14:30:00 +0530
+
+Dear User,
+
+You have successfully paid ₹500.00 to Swiggy via UPI.
+
+UPI Ref No: 402012345678
+Date: 20 Feb 2026
+From your HDFC Bank account XX1234.
+
+This is an automated message from Google Pay.

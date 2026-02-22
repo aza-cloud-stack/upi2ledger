@@ -1,0 +1,14 @@
+From: PhonePe <noreply@phonepe.com>
+Subject: Payment of ₹500 to Zomato successful
+Date: Thu, 20 Feb 2026 19:00:00 +0530
+
+Hi User,
+
+Your payment of ₹500.00 to Zomato has been completed successfully.
+
+Transaction ID: 402056789012
+Date: 20 Feb 2026, 07:00 PM
+
+Paid from HDFC Bank XX1234 via UPI.
+
+Thank you for using PhonePe!

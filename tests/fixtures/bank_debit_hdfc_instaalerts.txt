@@ -1,0 +1,5 @@
+From: HDFC Bank InstaAlerts <alerts@hdfcbank.bank.in>
+Subject: You have done a UPI txn. Check details!
+Date: Sun, 22 Feb 2026 12:17:00 +0530
+
+Dear Customer, Rs.448.00 has been debited from account 0792 to VPA swiggyupi@axb Swiggy Ltd on 22-02-26. Your UPI transaction reference number is 456363376702. If you did not authorize this transaction, please report it immediately by calling 18002586161 Or SMS BLOCK UPI to 7308080808. Warm Regards, HDFC Bank

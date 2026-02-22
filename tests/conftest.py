@@ -12,8 +12,11 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.db.models import init_db
+from app.gmail.fetch import EmailMessage
 from app.main import create_app
 from app.routes.auth import login_limiter
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 # A known bcrypt hash for the password "testpass123"
 TEST_PASSWORD = "testpass123"
@@ -117,3 +120,27 @@ def login(client: TestClient) -> TestClient:
     """Log in to the test client and return it with session cookie set."""
     client.post("/login", data={"username": "admin", "password": TEST_PASSWORD})
     return client
+
+
+def load_fixture(name: str) -> EmailMessage:
+    """Load a test fixture file into an EmailMessage.
+
+    Fixture format: headers (From, Subject, Date) followed by a blank line
+    then the body text.
+    """
+    path = FIXTURES_DIR / name
+    text = path.read_text(encoding="utf-8")
+    headers_section, _, body = text.partition("\n\n")
+
+    headers: dict[str, str] = {}
+    for line in headers_section.strip().splitlines():
+        key, _, value = line.partition(": ")
+        headers[key.strip()] = value.strip()
+
+    return EmailMessage(
+        message_id=f"fixture-{name}",
+        date=headers.get("Date", ""),
+        sender=headers.get("From", ""),
+        subject=headers.get("Subject", ""),
+        body=body.strip(),
+    )

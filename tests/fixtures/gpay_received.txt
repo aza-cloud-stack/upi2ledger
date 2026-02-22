@@ -1,0 +1,13 @@
+From: Google Pay <noreply@google.com>
+Subject: You received ₹1,000 from Rahul Kumar
+Date: Fri, 21 Feb 2026 10:15:00 +0530
+
+Dear User,
+
+You have received ₹1,000.00 from Rahul Kumar via UPI.
+
+UPI Ref No: 402198765432
+Date: 21 Feb 2026
+To your SBI account XX5678.
+
+This is an automated message from Google Pay.
