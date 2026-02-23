@@ -13,6 +13,7 @@ POST /sync chains:
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
@@ -21,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.db.models import get_connection, insert_pending_transaction
 from app.gmail.auth import get_gmail_service, load_credentials
-from app.gmail.fetch import fetch_emails, mark_as_processed
+from app.gmail.fetch import fetch_emails
 from app.ledger.mapper import map_merchant
 from app.parser import parse_email
 from app.security import RateLimiter, require_auth
@@ -92,14 +93,27 @@ async def sync_emails(
         account_fetched = len(emails)
         account_parsed = 0
 
+        # Use a single connection for ALL writes (inserts + mark-as-processed)
+        # to avoid SQLite write lock contention. mark_as_processed() from
+        # gmail/fetch.py opens its own connection, which would deadlock.
         conn = get_connection(db_path)
         try:
             for email in emails:
                 txn = parse_email(email)
                 if txn is None:
                     total_skipped += 1
-                    # Mark as processed so we don't re-fetch unparseable emails
-                    mark_as_processed(db_path, email.message_id, "none", acct.id)
+                    # Mark as processed inline (same conn) to avoid lock
+                    conn.execute(
+                        "INSERT OR IGNORE INTO processed_emails "
+                        "(message_id, processed_at, parser_source, account_id) "
+                        "VALUES (?, ?, ?, ?)",
+                        (
+                            email.message_id,
+                            datetime.now(tz=UTC).isoformat(),
+                            "none",
+                            acct.id,
+                        ),
+                    )
                     continue
 
                 suggested = map_merchant(txn.payee, txn.direction, db_path)
@@ -118,13 +132,24 @@ async def sync_emails(
                     account_id=acct.id,
                 )
 
-                mark_as_processed(db_path, email.message_id, txn.source, acct.id)
+                # Mark as processed inline (same conn) to avoid lock
+                conn.execute(
+                    "INSERT OR IGNORE INTO processed_emails "
+                    "(message_id, processed_at, parser_source, account_id) "
+                    "VALUES (?, ?, ?, ?)",
+                    (
+                        email.message_id,
+                        datetime.now(tz=UTC).isoformat(),
+                        txn.source,
+                        acct.id,
+                    ),
+                )
                 account_parsed += 1
 
             conn.commit()
         except Exception:
             conn.rollback()
-            logger.info("Error storing transactions for account %s", acct.id)
+            logger.exception("Error storing transactions for account %s", acct.id)
             results.append(
                 {
                     "account": acct.label,

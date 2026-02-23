@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from app.db.models import get_connection, get_pending_transactions
+from app.db.models import fetch_all, get_connection, get_pending_transactions
 from tests.conftest import login
 
 
@@ -49,7 +49,6 @@ class TestSyncRoute:
         assert response.status_code == 200
         assert "0" in response.text
 
-    @patch("app.routes.sync.mark_as_processed")
     @patch("app.routes.sync.map_merchant", return_value="expenses:food:delivery")
     @patch("app.routes.sync.parse_email")
     @patch("app.routes.sync.fetch_emails")
@@ -62,7 +61,6 @@ class TestSyncRoute:
         mock_fetch: MagicMock,
         mock_parse: MagicMock,
         mock_map: MagicMock,
-        mock_mark: MagicMock,
         client: TestClient,
     ) -> None:
         """Sync fetches, parses, and inserts into pending_transactions."""
@@ -97,7 +95,7 @@ class TestSyncRoute:
         assert response.status_code == 200
         assert "1" in response.text
 
-        # Verify DB insertion
+        # Verify pending_transactions
         db_path = client.app.state.db_path  # type: ignore[union-attr]
         conn = get_connection(db_path)
         try:
@@ -105,10 +103,19 @@ class TestSyncRoute:
             assert len(rows) == 1
             assert rows[0]["payee"] == "Swiggy"
             assert rows[0]["suggested_account"] == "expenses:food:delivery"
+
+            # Verify processed_emails (inline insert, not mark_as_processed)
+            processed = fetch_all(
+                conn,
+                "SELECT message_id, parser_source FROM processed_emails "
+                "WHERE message_id = ?",
+                ("msg-sync-1",),
+            )
+            assert len(processed) == 1
+            assert processed[0]["parser_source"] == "gpay"
         finally:
             conn.close()
 
-    @patch("app.routes.sync.mark_as_processed")
     @patch("app.routes.sync.parse_email", return_value=None)
     @patch("app.routes.sync.fetch_emails")
     @patch("app.routes.sync.get_gmail_service")
@@ -119,7 +126,6 @@ class TestSyncRoute:
         mock_service: MagicMock,
         mock_fetch: MagicMock,
         mock_parse: MagicMock,
-        mock_mark: MagicMock,
         client: TestClient,
     ) -> None:
         """Unparseable emails are marked as processed with source='none'."""
@@ -139,12 +145,20 @@ class TestSyncRoute:
         login(client)
         client.post("/sync")
 
-        mock_mark.assert_called_once_with(
-            client.app.state.db_path,  # type: ignore[union-attr]
-            "msg-unparseable",
-            "none",
-            "default",
-        )
+        # Verify it was marked in DB with source="none"
+        db_path = client.app.state.db_path  # type: ignore[union-attr]
+        conn = get_connection(db_path)
+        try:
+            processed = fetch_all(
+                conn,
+                "SELECT message_id, parser_source FROM processed_emails "
+                "WHERE message_id = ?",
+                ("msg-unparseable",),
+            )
+            assert len(processed) == 1
+            assert processed[0]["parser_source"] == "none"
+        finally:
+            conn.close()
 
     @patch("app.routes.sync.load_credentials")
     def test_sync_handles_fetch_error(
@@ -154,7 +168,9 @@ class TestSyncRoute:
     ) -> None:
         """Sync handles Gmail API errors gracefully."""
         mock_creds.return_value = MagicMock()
-        with patch("app.routes.sync.get_gmail_service", side_effect=Exception("API error")):
+        with patch(
+            "app.routes.sync.get_gmail_service", side_effect=Exception("API error")
+        ):
             login(client)
             response = client.post("/sync")
             assert response.status_code == 200
