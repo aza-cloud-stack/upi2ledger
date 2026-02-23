@@ -184,14 +184,14 @@ class TestQueryHelpers:
         finally:
             conn.close()
 
-    def test_schema_version_is_2(self, test_db: Path) -> None:
-        """Fresh install sets schema version to 2."""
-        assert CURRENT_SCHEMA_VERSION == 2
+    def test_schema_version_is_3(self, test_db: Path) -> None:
+        """Fresh install sets schema version to 3."""
+        assert CURRENT_SCHEMA_VERSION == 3
         conn = get_connection(test_db)
         try:
             row = fetch_one(conn, "SELECT version FROM schema_version")
             assert row is not None
-            assert row["version"] == 2
+            assert row["version"] == 3
         finally:
             conn.close()
 
@@ -304,7 +304,7 @@ class TestMigrationV1ToV2:
 
             row = fetch_one(conn, "SELECT version FROM schema_version")
             assert row is not None
-            assert row["version"] == 2
+            assert row["version"] == 3
         finally:
             conn.close()
 

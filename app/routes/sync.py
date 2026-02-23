@@ -147,20 +147,6 @@ async def sync_emails(
                 account_parsed += 1
 
             conn.commit()
-
-            # Verify processed_emails were persisted
-            count = conn.execute(
-                "SELECT COUNT(*) FROM processed_emails WHERE account_id = ?",
-                (acct.id,),
-            ).fetchone()[0]
-            logger.info(
-                "Account %s: committed %d parsed + %d skipped, "
-                "processed_emails count: %d",
-                acct.id,
-                account_parsed,
-                total_skipped,
-                count,
-            )
         except Exception:
             conn.rollback()
             logger.exception("Error storing transactions for account %s", acct.id)

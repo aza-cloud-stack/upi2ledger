@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 """
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
@@ -70,6 +70,35 @@ def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
     )
     conn.commit()
     logger.info("Database migrated from v1 to v2 (added account_id)")
+
+
+def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
+    """Remove column-level UNIQUE on message_id from processed_emails.
+
+    The original schema had `message_id TEXT UNIQUE NOT NULL` which prevents
+    the same Gmail message_id from being stored for different accounts.
+    The composite index (account_id, message_id) from v2 is the correct
+    uniqueness constraint. SQLite requires table recreation to drop a
+    column-level UNIQUE.
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS processed_emails_v3 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id TEXT NOT NULL,
+            processed_at TEXT NOT NULL,
+            parser_source TEXT NOT NULL,
+            account_id TEXT NOT NULL DEFAULT 'default'
+        );
+        INSERT OR IGNORE INTO processed_emails_v3
+            (id, message_id, processed_at, parser_source, account_id)
+            SELECT id, message_id, processed_at, parser_source, account_id
+            FROM processed_emails;
+        DROP TABLE processed_emails;
+        ALTER TABLE processed_emails_v3 RENAME TO processed_emails;
+        CREATE UNIQUE INDEX IF NOT EXISTS ix_processed_account_message
+            ON processed_emails (account_id, message_id);
+    """)
+    logger.info("Database migrated from v2 to v3 (fixed processed_emails unique constraint)")
 
 
 def get_db_path() -> Path:
@@ -100,11 +129,13 @@ def init_db(db_path: Path) -> None:
             )
         if current_version < 2:
             _migrate_v1_to_v2(conn)
-            if current_version >= 1:
-                conn.execute(
-                    "UPDATE schema_version SET version = ? WHERE version = ?",
-                    (CURRENT_SCHEMA_VERSION, current_version),
-                )
+        if current_version < 3:
+            _migrate_v2_to_v3(conn)
+        if current_version >= 1:
+            conn.execute(
+                "UPDATE schema_version SET version = ? WHERE version = ?",
+                (CURRENT_SCHEMA_VERSION, current_version),
+            )
         conn.commit()
     finally:
         conn.close()
