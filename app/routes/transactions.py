@@ -131,6 +131,74 @@ async def approve_transaction(
     return RedirectResponse(url=f"/transactions?success={msg}", status_code=303)
 
 
+@router.post("/approve-all", response_model=None)
+async def approve_all_transactions(
+    request: Request,
+    username: str = Depends(require_auth),
+) -> RedirectResponse:
+    """Approve all pending transactions using their suggested accounts."""
+    settings = request.app.state.settings
+    db_path = request.app.state.db_path
+    payment_account = settings.journal.default_payment_account
+
+    conn = get_connection(db_path)
+    try:
+        pending = get_pending_transactions(conn, status="pending", limit=10000)
+        if not pending:
+            return RedirectResponse(
+                url="/transactions?error=No+pending+transactions", status_code=303
+            )
+
+        entries: list[str] = []
+        approved_ids: list[int] = []
+
+        for txn in pending:
+            expense_account = txn["suggested_account"] or (
+                "expenses:miscellaneous" if txn["direction"] == "sent" else "income:miscellaneous"
+            )
+
+            try:
+                amount = Decimal(txn["amount"])
+            except (InvalidOperation, TypeError):
+                logger.info("Skipping transaction %d: invalid amount", txn["id"])
+                continue
+
+            try:
+                entry = format_transaction(
+                    date=txn["date"],
+                    payee=txn["payee"],
+                    amount=amount,
+                    direction=txn["direction"],
+                    expense_account=expense_account,
+                    payment_account=payment_account,
+                    upi_ref=txn["upi_ref"],
+                )
+            except ValueError:
+                logger.info("Skipping transaction %d: invalid account name", txn["id"])
+                continue
+
+            entries.append(entry)
+            approved_ids.append(txn["id"])
+
+        if entries:
+            write_entries(entries, settings.journal.path)
+
+        for txn_id in approved_ids:
+            txn_row = get_transaction_by_id(conn, txn_id)
+            account = txn_row["suggested_account"] if txn_row else None
+            update_transaction_status(conn, txn_id, "approved", account)
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    count = len(approved_ids)
+    logger.info("Bulk approved %d transactions", count)
+    return RedirectResponse(
+        url=f"/transactions?success=Approved+{count}+transactions", status_code=303
+    )
+
+
 @router.post("/{transaction_id}/reject")
 async def reject_transaction(
     request: Request,

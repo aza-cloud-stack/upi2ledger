@@ -23,6 +23,12 @@
 {% endif %}
 
 {% if transactions %}
+<div class="txn-bulk-actions">
+    <form method="post" action="/transactions/approve-all">
+        <button type="submit" class="btn btn-primary">Approve All ({{ transactions|length }})</button>
+    </form>
+    <span>Approve all pending transactions with their current accounts</span>
+</div>
 <div class="txn-list">
     {% for txn in transactions %}
     <div class="txn-card {{ 'txn-sent' if txn.direction == 'sent' else 'txn-received' }}">

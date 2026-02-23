@@ -188,6 +188,45 @@ class TestApproveTransaction:
         assert "similar" not in response.headers["location"]
 
 
+class TestApproveAllTransactions:
+    """Tests for POST /transactions/approve-all."""
+
+    def test_requires_auth(self, client: TestClient) -> None:
+        """POST approve-all redirects to login."""
+        response = client.post("/transactions/approve-all", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+
+    def test_approve_all_empty(self, client: TestClient) -> None:
+        """Approve all with no pending transactions shows error."""
+        login(client)
+        response = client.post("/transactions/approve-all", follow_redirects=False)
+        assert response.status_code == 303
+        assert "No+pending" in response.headers["location"]
+
+    @patch("app.routes.transactions.write_entries", return_value=2)
+    def test_approve_all_writes_journal(self, mock_write: MagicMock, client: TestClient) -> None:
+        """Approve all writes all entries to journal and marks as approved."""
+        login(client)
+        id1 = _insert_test_txn(client, email_message_id="msg-1", payee="Swiggy")
+        id2 = _insert_test_txn(client, email_message_id="msg-2", payee="Zomato")
+        response = client.post("/transactions/approve-all", follow_redirects=False)
+        assert response.status_code == 303
+        assert "Approved+2" in response.headers["location"]
+        mock_write.assert_called_once()
+
+        # Both should be approved in DB
+        db_path = client.app.state.db_path  # type: ignore[union-attr]
+        conn = get_connection(db_path)
+        try:
+            row1 = get_transaction_by_id(conn, id1)
+            row2 = get_transaction_by_id(conn, id2)
+            assert row1 is not None and row1["status"] == "approved"
+            assert row2 is not None and row2["status"] == "approved"
+        finally:
+            conn.close()
+
+
 class TestRejectTransaction:
     """Tests for POST /transactions/{id}/reject."""
 
