@@ -129,8 +129,10 @@ class TestApproveTransaction:
 
     @patch("app.routes.transactions.write_entries", return_value=1)
     @patch("app.routes.transactions.save_merchant_mapping")
+    @patch("app.routes.transactions.remap_pending_transactions", return_value=0)
     def test_approve_with_save_mapping(
         self,
+        mock_remap: MagicMock,
         mock_save: MagicMock,
         mock_write: MagicMock,
         client: TestClient,
@@ -144,6 +146,46 @@ class TestApproveTransaction:
             follow_redirects=False,
         )
         mock_save.assert_called_once()
+        mock_remap.assert_called_once()
+
+    @patch("app.routes.transactions.write_entries", return_value=1)
+    @patch("app.routes.transactions.save_merchant_mapping")
+    @patch("app.routes.transactions.remap_pending_transactions", return_value=3)
+    def test_approve_with_remember_shows_remap_count(
+        self,
+        mock_remap: MagicMock,
+        mock_save: MagicMock,
+        mock_write: MagicMock,
+        client: TestClient,
+    ) -> None:
+        """Approve with Remember includes remap count in success message."""
+        login(client)
+        txn_id = _insert_test_txn(client)
+        response = client.post(
+            f"/transactions/{txn_id}/approve",
+            data={"account": "expenses:food:delivery", "save_mapping": "on"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        location = response.headers["location"]
+        assert "Updated+3+similar" in location
+
+    @patch("app.routes.transactions.write_entries", return_value=1)
+    def test_approve_without_remember_skips_remap(
+        self,
+        mock_write: MagicMock,
+        client: TestClient,
+    ) -> None:
+        """Approve without Remember does not trigger remap."""
+        login(client)
+        txn_id = _insert_test_txn(client)
+        response = client.post(
+            f"/transactions/{txn_id}/approve",
+            data={"account": "expenses:food:delivery"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert "similar" not in response.headers["location"]
 
 
 class TestRejectTransaction:

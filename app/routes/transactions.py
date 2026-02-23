@@ -19,7 +19,7 @@ from app.db.models import (
     get_transaction_by_id,
     update_transaction_status,
 )
-from app.ledger.mapper import save_merchant_mapping
+from app.ledger.mapper import remap_pending_transactions, save_merchant_mapping
 from app.ledger.writer import format_transaction, write_entries
 from app.security import require_auth
 
@@ -117,12 +117,18 @@ async def approve_transaction(
 
         if save_mapping == "on":
             save_merchant_mapping(db_path, txn["payee"], expense_account)
+            remapped = remap_pending_transactions(db_path)
+        else:
+            remapped = 0
 
     finally:
         conn.close()
 
     logger.info("Transaction approved and written to journal")
-    return RedirectResponse(url="/transactions?success=Transaction+approved", status_code=303)
+    msg = "Transaction+approved"
+    if remapped > 0:
+        msg += f".+Updated+{remapped}+similar+transactions"
+    return RedirectResponse(url=f"/transactions?success={msg}", status_code=303)
 
 
 @router.post("/{transaction_id}/reject")
