@@ -87,6 +87,7 @@ def init_db(db_path: Path) -> None:
 
     conn = sqlite3.connect(str(db_path))
     try:
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(DB_SCHEMA)
         # Track schema version and run migrations
         cursor = conn.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
