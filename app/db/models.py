@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -142,3 +143,91 @@ def fetch_all(
     """Execute a parameterized query and return all rows."""
     cursor = conn.execute(query, params)
     return cursor.fetchall()
+
+
+def insert_pending_transaction(
+    conn: sqlite3.Connection,
+    *,
+    date: str,
+    amount: str,
+    payee: str,
+    direction: str,
+    source: str,
+    upi_ref: str | None,
+    email_message_id: str,
+    confidence: float,
+    suggested_account: str | None,
+    account_id: str = "default",
+) -> int:
+    """Insert a pending transaction and return the row ID.
+
+    Uses keyword-only args to prevent positional ordering mistakes.
+    All values should be validated before reaching this function.
+    """
+    cursor = conn.execute(
+        "INSERT INTO pending_transactions "
+        "(date, amount, payee, direction, source, upi_ref, "
+        "email_message_id, confidence, suggested_account, status, "
+        "created_at, account_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
+        (
+            date,
+            amount,
+            payee,
+            direction,
+            source,
+            upi_ref,
+            email_message_id,
+            confidence,
+            suggested_account,
+            datetime.now(tz=UTC).isoformat(),
+            account_id,
+        ),
+    )
+    return cursor.lastrowid or 0
+
+
+def get_pending_transactions(
+    conn: sqlite3.Connection,
+    status: str = "pending",
+    limit: int = 100,
+) -> list[sqlite3.Row]:
+    """Fetch pending transactions filtered by status, newest first."""
+    return fetch_all(
+        conn,
+        "SELECT * FROM pending_transactions WHERE status = ? "
+        "ORDER BY date DESC, id DESC LIMIT ?",
+        (status, limit),
+    )
+
+
+def get_transaction_by_id(
+    conn: sqlite3.Connection,
+    transaction_id: int,
+) -> sqlite3.Row | None:
+    """Fetch a single pending transaction by ID."""
+    return fetch_one(
+        conn,
+        "SELECT * FROM pending_transactions WHERE id = ?",
+        (transaction_id,),
+    )
+
+
+def update_transaction_status(
+    conn: sqlite3.Connection,
+    transaction_id: int,
+    status: str,
+    suggested_account: str | None = None,
+) -> bool:
+    """Update a pending transaction's status. Returns True if a row was updated."""
+    if suggested_account is not None:
+        cursor = conn.execute(
+            "UPDATE pending_transactions SET status = ?, suggested_account = ? WHERE id = ?",
+            (status, suggested_account, transaction_id),
+        )
+    else:
+        cursor = conn.execute(
+            "UPDATE pending_transactions SET status = ? WHERE id = ?",
+            (status, transaction_id),
+        )
+    return cursor.rowcount > 0

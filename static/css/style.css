@@ -217,3 +217,135 @@ button[type="submit"]:hover {
     margin-bottom: 0.25rem;
     font-size: 0.9rem;
 }
+
+/* Dashboard nav */
+
+.dashboard-nav {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.dashboard-nav a {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.dashboard-nav a:hover {
+    text-decoration: underline;
+}
+
+/* Sync section */
+
+.sync-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.sync-section h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.htmx-indicator {
+    display: none;
+    color: #666;
+    font-size: 0.9rem;
+    margin-left: 0.5rem;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+    display: inline;
+}
+
+/* Sync results */
+
+.sync-summary {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 4px;
+}
+
+.sync-account-result {
+    font-size: 0.9rem;
+    padding: 0.25rem 0;
+}
+
+.status-disconnected { color: #9ca3af; }
+.status-error { color: #ef4444; }
+
+/* Transaction cards */
+
+.txn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.txn-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+}
+
+.txn-sent { border-left: 4px solid #ef4444; }
+.txn-received { border-left: 4px solid #22c55e; }
+
+.txn-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.txn-date { color: #666; font-size: 0.9rem; }
+.txn-amount { font-weight: 700; font-size: 1.1rem; }
+.txn-amount.debit { color: #ef4444; }
+.txn-amount.credit { color: #22c55e; }
+
+.txn-payee { font-weight: 600; margin-bottom: 0.5rem; }
+
+.txn-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+}
+
+.txn-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.txn-account-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-family: monospace;
+}
+
+.save-mapping-label {
+    font-size: 0.85rem;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-sm {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+}

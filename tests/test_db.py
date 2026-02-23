@@ -15,7 +15,11 @@ from app.db.models import (
     fetch_all,
     fetch_one,
     get_connection,
+    get_pending_transactions,
+    get_transaction_by_id,
     init_db,
+    insert_pending_transaction,
+    update_transaction_status,
 )
 
 
@@ -301,5 +305,209 @@ class TestMigrationV1ToV2:
             row = fetch_one(conn, "SELECT version FROM schema_version")
             assert row is not None
             assert row["version"] == 2
+        finally:
+            conn.close()
+
+
+class TestPendingTransactionHelpers:
+    """Tests for pending_transactions insert/query/update helpers."""
+
+    def test_insert_pending_transaction(self, test_db: Path) -> None:
+        """insert_pending_transaction creates a row with correct fields."""
+        conn = get_connection(test_db)
+        try:
+            row_id = insert_pending_transaction(
+                conn,
+                date="2026-02-23",
+                amount="500.00",
+                payee="Swiggy",
+                direction="sent",
+                source="gpay",
+                upi_ref="402012345678",
+                email_message_id="msg-001",
+                confidence=1.0,
+                suggested_account="expenses:food:delivery",
+                account_id="personal",
+            )
+            conn.commit()
+            assert row_id > 0
+
+            row = get_transaction_by_id(conn, row_id)
+            assert row is not None
+            assert row["payee"] == "Swiggy"
+            assert row["amount"] == "500.00"
+            assert row["direction"] == "sent"
+            assert row["status"] == "pending"
+            assert row["account_id"] == "personal"
+            assert row["upi_ref"] == "402012345678"
+            assert row["suggested_account"] == "expenses:food:delivery"
+        finally:
+            conn.close()
+
+    def test_insert_without_optional_fields(self, test_db: Path) -> None:
+        """insert_pending_transaction handles None upi_ref and suggested_account."""
+        conn = get_connection(test_db)
+        try:
+            row_id = insert_pending_transaction(
+                conn,
+                date="2026-02-23",
+                amount="200.00",
+                payee="Bank Transfer",
+                direction="sent",
+                source="bank",
+                upi_ref=None,
+                email_message_id="msg-002",
+                confidence=0.8,
+                suggested_account=None,
+            )
+            conn.commit()
+            assert row_id > 0
+
+            row = get_transaction_by_id(conn, row_id)
+            assert row is not None
+            assert row["upi_ref"] is None
+            assert row["suggested_account"] is None
+        finally:
+            conn.close()
+
+    def test_get_pending_transactions_ordered(self, test_db: Path) -> None:
+        """get_pending_transactions returns rows ordered by date desc."""
+        conn = get_connection(test_db)
+        try:
+            for i, date in enumerate(["2026-02-20", "2026-02-22", "2026-02-21"]):
+                insert_pending_transaction(
+                    conn,
+                    date=date,
+                    amount="100.00",
+                    payee=f"Merchant{i}",
+                    direction="sent",
+                    source="gpay",
+                    upi_ref=None,
+                    email_message_id=f"msg-{i}",
+                    confidence=1.0,
+                    suggested_account=None,
+                )
+            conn.commit()
+
+            rows = get_pending_transactions(conn)
+            assert len(rows) == 3
+            assert rows[0]["date"] == "2026-02-22"
+            assert rows[2]["date"] == "2026-02-20"
+        finally:
+            conn.close()
+
+    def test_get_pending_transactions_filters_status(self, test_db: Path) -> None:
+        """get_pending_transactions only returns rows with matching status."""
+        conn = get_connection(test_db)
+        try:
+            insert_pending_transaction(
+                conn,
+                date="2026-02-23",
+                amount="100.00",
+                payee="A",
+                direction="sent",
+                source="gpay",
+                upi_ref=None,
+                email_message_id="msg-a",
+                confidence=1.0,
+                suggested_account=None,
+            )
+            row_id = insert_pending_transaction(
+                conn,
+                date="2026-02-23",
+                amount="200.00",
+                payee="B",
+                direction="sent",
+                source="gpay",
+                upi_ref=None,
+                email_message_id="msg-b",
+                confidence=1.0,
+                suggested_account=None,
+            )
+            update_transaction_status(conn, row_id, "approved")
+            conn.commit()
+
+            pending = get_pending_transactions(conn, status="pending")
+            assert len(pending) == 1
+            assert pending[0]["payee"] == "A"
+
+            approved = get_pending_transactions(conn, status="approved")
+            assert len(approved) == 1
+            assert approved[0]["payee"] == "B"
+        finally:
+            conn.close()
+
+    def test_update_transaction_status(self, test_db: Path) -> None:
+        """update_transaction_status changes status and optional account."""
+        conn = get_connection(test_db)
+        try:
+            row_id = insert_pending_transaction(
+                conn,
+                date="2026-02-23",
+                amount="100.00",
+                payee="Test",
+                direction="sent",
+                source="gpay",
+                upi_ref=None,
+                email_message_id="msg-x",
+                confidence=1.0,
+                suggested_account=None,
+            )
+            conn.commit()
+
+            result = update_transaction_status(conn, row_id, "approved", "expenses:food")
+            conn.commit()
+            assert result is True
+
+            row = get_transaction_by_id(conn, row_id)
+            assert row is not None
+            assert row["status"] == "approved"
+            assert row["suggested_account"] == "expenses:food"
+        finally:
+            conn.close()
+
+    def test_update_status_without_account(self, test_db: Path) -> None:
+        """update_transaction_status works without changing suggested_account."""
+        conn = get_connection(test_db)
+        try:
+            row_id = insert_pending_transaction(
+                conn,
+                date="2026-02-23",
+                amount="100.00",
+                payee="Test",
+                direction="sent",
+                source="gpay",
+                upi_ref=None,
+                email_message_id="msg-y",
+                confidence=1.0,
+                suggested_account="expenses:food",
+            )
+            conn.commit()
+
+            update_transaction_status(conn, row_id, "rejected")
+            conn.commit()
+
+            row = get_transaction_by_id(conn, row_id)
+            assert row is not None
+            assert row["status"] == "rejected"
+            assert row["suggested_account"] == "expenses:food"
+        finally:
+            conn.close()
+
+    def test_update_nonexistent_returns_false(self, test_db: Path) -> None:
+        """update_transaction_status returns False for nonexistent ID."""
+        conn = get_connection(test_db)
+        try:
+            result = update_transaction_status(conn, 99999, "approved")
+            assert result is False
+        finally:
+            conn.close()
+
+    def test_get_transaction_by_id_not_found(self, test_db: Path) -> None:
+        """get_transaction_by_id returns None for nonexistent ID."""
+        conn = get_connection(test_db)
+        try:
+            row = get_transaction_by_id(conn, 99999)
+            assert row is None
         finally:
             conn.close()

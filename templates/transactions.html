@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Transactions — upi2ledger{% endblock %}
+
+{% block nav %}
+<span class="user">{{ username }}</span>
+<a href="/">Dashboard</a>
+<a href="/logout">Logout</a>
+{% endblock %}
+
+{% block content %}
+<h1>Pending Transactions</h1>
+
+{% set error = request.query_params.get("error") %}
+{% set success = request.query_params.get("success") %}
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">{{ success }}</div>
+{% endif %}
+
+{% if transactions %}
+<div class="txn-list">
+    {% for txn in transactions %}
+    <div class="txn-card {{ 'txn-sent' if txn.direction == 'sent' else 'txn-received' }}">
+        <div class="txn-header">
+            <span class="txn-date">{{ txn.date }}</span>
+            <span class="txn-amount {{ 'debit' if txn.direction == 'sent' else 'credit' }}">
+                {% if txn.direction == "sent" %}-{% else %}+{% endif %}₹ {{ txn.amount }}
+            </span>
+        </div>
+        <div class="txn-payee">{{ txn.payee }}</div>
+        <div class="txn-meta">
+            <span class="txn-source">{{ txn.source }}</span>
+            {% if txn.upi_ref %}
+            <span class="txn-ref">Ref: {{ txn.upi_ref }}</span>
+            {% endif %}
+            <span class="txn-confidence">Confidence: {{ "%.0f"|format(txn.confidence * 100) }}%</span>
+        </div>
+        <form method="post" action="/transactions/{{ txn.id }}/approve" class="txn-actions">
+            <label for="account-{{ txn.id }}">Account:</label>
+            <input type="text"
+                   id="account-{{ txn.id }}"
+                   name="account"
+                   value="{{ txn.suggested_account or '' }}"
+                   placeholder="expenses:category"
+                   class="txn-account-input">
+            <label class="save-mapping-label">
+                <input type="checkbox" name="save_mapping"> Remember
+            </label>
+            <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+            <button type="submit" formaction="/transactions/{{ txn.id }}/reject" class="btn btn-danger btn-sm">Reject</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p>No pending transactions. <a href="/">Sync new emails</a> from the dashboard.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% else %}
+<div class="sync-summary">
+    <p>
+        Fetched <strong>{{ total_fetched }}</strong> emails,
+        parsed <strong>{{ total_parsed }}</strong> transactions
+        {% if total_skipped %}, skipped {{ total_skipped }} unparseable{% endif %}.
+    </p>
+    {% for result in results %}
+    <div class="sync-account-result">
+        <strong>{{ result.account }}</strong>:
+        {% if result.status == "disconnected" %}
+        <span class="status-disconnected">Not connected</span>
+        {% elif result.status == "error" %}
+        <span class="status-error">Error during sync</span>
+        {% else %}
+        {{ result.fetched }} fetched, {{ result.parsed }} parsed
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% if total_parsed > 0 %}
+    <p><a href="/transactions">Review pending transactions</a></p>
+    {% endif %}
+</div>
+{% endif %}

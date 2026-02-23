@@ -104,8 +104,9 @@ def client(
     valid_settings: Settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Generator[TestClient, None, None]:
     """Create a FastAPI TestClient with valid settings."""
-    # Use temp db path
+    # Use temp db path — patch both the source module and the import in main.py
     monkeypatch.setattr("app.db.models.get_db_path", lambda: tmp_path / "test.db")
+    monkeypatch.setattr("app.main.get_db_path", lambda: tmp_path / "test.db")
     monkeypatch.chdir(Path(__file__).parent.parent)
 
     # Reset rate limiter between tests

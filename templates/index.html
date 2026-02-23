@@ -12,5 +12,19 @@
 <p>UPI transaction emails → hledger journal entries.</p>
 <nav class="dashboard-nav">
     <a href="/gmail/accounts">Gmail Accounts</a>
+    <a href="/transactions">Pending Transactions</a>
 </nav>
+
+<div class="sync-section">
+    <h2>Sync Emails</h2>
+    <p>Fetch new UPI transaction emails from all connected Gmail accounts.</p>
+    <button class="btn btn-primary"
+            hx-post="/sync"
+            hx-target="#sync-results"
+            hx-indicator="#sync-spinner">
+        Sync Now
+    </button>
+    <span id="sync-spinner" class="htmx-indicator">Syncing...</span>
+    <div id="sync-results"></div>
+</div>
 {% endblock %}
