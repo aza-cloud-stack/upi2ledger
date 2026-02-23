@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 from app.db.models import get_connection, insert_pending_transaction
 from app.gmail.auth import get_gmail_service, load_credentials
 from app.gmail.fetch import fetch_emails
-from app.ledger.mapper import map_merchant
+from app.ledger.mapper import map_merchant, remap_pending_transactions
 from app.parser import parse_email
 from app.security import RateLimiter, require_auth
 
@@ -174,11 +174,17 @@ async def sync_emails(
             }
         )
 
+    # Re-evaluate suggested_account for all pending transactions.
+    # This catches stale categories from before built-in rules were added
+    # or newly saved merchant mappings from other approvals.
+    total_remapped = remap_pending_transactions(db_path)
+
     logger.info(
-        "Sync complete: %d fetched, %d parsed, %d skipped",
+        "Sync complete: %d fetched, %d parsed, %d skipped, %d remapped",
         total_fetched,
         total_parsed,
         total_skipped,
+        total_remapped,
     )
 
     return templates.TemplateResponse(
@@ -189,6 +195,7 @@ async def sync_emails(
             "total_fetched": total_fetched,
             "total_parsed": total_parsed,
             "total_skipped": total_skipped,
+            "total_remapped": total_remapped,
             "error": None,
         },
     )

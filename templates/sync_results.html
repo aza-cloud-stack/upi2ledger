@@ -6,6 +6,7 @@
         Fetched <strong>{{ total_fetched }}</strong> emails,
         parsed <strong>{{ total_parsed }}</strong> transactions
         {% if total_skipped %}, skipped {{ total_skipped }} unparseable{% endif %}.
+        {% if total_remapped %}Updated {{ total_remapped }} existing transaction categories.{% endif %}
     </p>
     {% for result in results %}
     <div class="sync-account-result">

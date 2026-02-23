@@ -322,18 +322,22 @@ button[type="submit"]:hover {
 
 .txn-actions {
     display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.txn-actions .txn-action-buttons {
+    display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
 }
 
 .txn-account-input {
-    flex: 1;
-    min-width: 200px;
+    width: 100%;
     padding: 0.4rem 0.6rem;
     border: 1px solid #ccc;
     border-radius: 4px;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-family: monospace;
 }
 
